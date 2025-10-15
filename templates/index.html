@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Credit Card Statement Parser</title>
+    <style>
+        body {
+            font-family: Arial;
+            background-color: #f0f0f0;
+            margin: 0;
+            padding: 20px;
+        }
+        .container {
+            background: white;
+            max-width: 700px;
+            margin: 50px auto;
+            padding: 30px;
+            border: 2px solid #ccc;
+            border-radius: 5px;
+        }
+        h1 { 
+            color: #2c3e50;
+            text-align: center;
+            border-bottom: 3px solid #3498db;
+            padding-bottom: 15px;
+        }
+        .upload-box {
+            border: 2px dashed #3498db;
+            padding: 50px;
+            text-align: center;
+            background-color: #ecf0f1;
+            margin: 20px 0;
+            cursor: pointer;
+        }
+        .upload-box:hover {
+            background-color: #d5dbdb;
+        }
+        input[type="file"] { 
+            display: none; 
+        }
+        button {
+            background-color: #3498db;
+            color: white;
+            padding: 12px 30px;
+            border: none;
+            font-size: 16px;
+            cursor: pointer;
+            width: 100%;
+            margin-top: 15px;
+        }
+        button:hover {
+            background-color: #2980b9;
+        }
+        button:disabled {
+            background-color: #95a5a6;
+            cursor: not-allowed;
+        }
+        .results {
+            margin-top: 30px;
+            display: none;
+        }
+        .results h3 {
+            color: #27ae60;
+            border-bottom: 2px solid #27ae60;
+            padding-bottom: 10px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+        }
+        table td {
+            padding: 12px;
+            border: 1px solid #ddd;
+        }
+        table td:first-child {
+            background-color: #ecf0f1;
+            font-weight: bold;
+            width: 40%;
+        }
+        .error-box {
+            background: #e74c3c;
+            color: white;
+            padding: 15px;
+            margin-top: 20px;
+            display: none;
+            border-radius: 3px;
+        }
+        .loading {
+            text-align: center;
+            display: none;
+            margin-top: 20px;
+        }
+        .loading-text {
+            color: #555;
+            margin-top: 10px;
+        }
+        .spinner {
+            border: 5px solid #f3f3f3;
+            border-top: 5px solid #3498db;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .info {
+            background-color: #d6eaf8;
+            padding: 10px;
+            margin: 20px 0;
+            border-left: 4px solid #3498db;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📄 Credit Card Statement Parser</h1>
+        
+        <div class="info">
+            <strong>Supported Banks:</strong> HDFC, ICICI, SBI, Axis, Kotak
+        </div>
+
+        <div class="upload-box" id="uploadArea">
+            <p style="font-size: 60px; margin: 0;">📁</p>
+            <p style="font-size: 18px; color: #3498db; margin: 10px 0;">
+                <strong>Click here to upload your PDF statement</strong>
+            </p>
+            <p style="color: #7f8c8d; font-size: 14px;">
+                (or drag and drop)
+            </p>
+            <input type="file" id="fileInput" accept=".pdf">
+        </div>
+
+        <button id="parseBtn" onclick="upload()" style="display:none;">
+            📊 Parse Statement
+        </button>
+
+        <div class="loading" id="loading">
+            <div class="spinner"></div>
+            <div class="loading-text">Processing your statement...</div>
+        </div>
+
+        <div class="error-box" id="error"></div>
+
+        <div class="results" id="results"></div>
+    </div>
+
+    <script>
+        const uploadArea = document.getElementById('uploadArea');
+        const fileInput = document.getElementById('fileInput');
+        const parseBtn = document.getElementById('parseBtn');
+        const loading = document.getElementById('loading');
+        const error = document.getElementById('error');
+        const results = document.getElementById('results');
+        let file = null;
+
+        uploadArea.onclick = () => fileInput.click();
+        
+        uploadArea.ondragover = (e) => {
+            e.preventDefault();
+            uploadArea.style.backgroundColor = '#d5dbdb';
+        };
+        
+        uploadArea.ondragleave = () => {
+            uploadArea.style.backgroundColor = '#ecf0f1';
+        };
+        
+        uploadArea.ondrop = (e) => {
+            e.preventDefault();
+            uploadArea.style.backgroundColor = '#ecf0f1';
+            if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
+        };
+        
+        fileInput.onchange = (e) => {
+            if (e.target.files.length) handleFile(e.target.files[0]);
+        };
+
+        function handleFile(f) {
+            if (!f.name.endsWith('.pdf')) {
+                showError('Please upload a PDF file');
+                return;
+            }
+            file = f;
+            uploadArea.innerHTML = `
+                <p style="font-size: 60px; margin: 0;">✅</p>
+                <p style="color: #27ae60; font-size: 18px;"><strong>${f.name}</strong></p>
+                <p style="color: #7f8c8d; font-size: 14px;">Ready to parse!</p>
+            `;
+            parseBtn.style.display = 'block';
+            error.style.display = 'none';
+            results.style.display = 'none';
+        }
+
+        async function upload() {
+            if (!file) return;
+            
+            loading.style.display = 'block';
+            error.style.display = 'none';
+            results.style.display = 'none';
+            parseBtn.disabled = true;
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            try {
+                const res = await fetch('/parse', { method: 'POST', body: formData });
+                const data = await res.json();
+                
+                loading.style.display = 'none';
+                parseBtn.disabled = false;
+
+                if (data.error) {
+                    showError(data.error);
+                } else {
+                    showResults(data);
+                }
+            } catch (err) {
+                loading.style.display = 'none';
+                parseBtn.disabled = false;
+                showError(err.message);
+            }
+        }
+
+        function showError(msg) {
+            error.textContent = '❌ Error: ' + msg;
+            error.style.display = 'block';
+        }
+
+        function showResults(data) {
+            let html = '<h3>✅ Extraction Successful!</h3>';
+            html += '<table>';
+            html += '<tr><td>🏦 Bank Name</td><td>' + data.bank + '</td></tr>';
+            html += '<tr><td>💳 Card Number</td><td>' + data.card_number + '</td></tr>';
+            html += '<tr><td>📅 Statement Date</td><td>' + data.statement_date + '</td></tr>';
+            html += '<tr><td>💰 Total Amount Due</td><td>' + data.total_due + '</td></tr>';
+            html += '<tr><td>⏰ Payment Due Date</td><td>' + data.due_date + '</td></tr>';
+            html += '<tr><td>🎯 Credit Limit</td><td>' + data.credit_limit + '</td></tr>';
+            html += '</table>';
+
+            results.innerHTML = html;
+            results.style.display = 'block';
+        }
+    </script>
+</body>
+</html>
